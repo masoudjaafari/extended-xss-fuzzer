@@ -1,0 +1,778 @@
+
+<!-- saved from url=(0193)file:///C:/Users/masoud/Dropbox/%D9%BE%D8%A7%DB%8C%D8%A7%D9%86%20%D9%86%D8%A7%D9%85%D9%87/%D8%A7%D8%B1%D8%A7%D8%A6%D9%87%20%D9%86%D9%87%D8%A7%DB%8C%DB%8C/XSSFuzzer-master/xss_fuzzer_finall.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>فازر XSS</title>
+	
+    <style>
+
+.displayinline
+{
+    display: inline-block;
+}
+
+.round {
+	border: 2px solid #765942;
+	border-radius: 10px;
+    padding: 10px 10px 10px 10px;
+}
+    
+table.blueTable {
+  border: 1px solid #1C6EA4;
+  background-color: #EEEEEE;
+  width: 90%;
+  text-align: left;
+  border-collapse: collapse;
+}
+table.blueTable td, table.blueTable th {
+  border: 1px solid #AAAAAA;
+  padding: 3px 2px;
+}
+table.blueTable tbody td {
+  font-size: 13px;
+}
+table.blueTable thead {
+  background: #1C6EA4;
+  background: -moz-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+  background: -webkit-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+  background: linear-gradient(to bottom, #3c4b56 0%, #327cad 66%, #1C6EA4 100%);
+  border-bottom: 2px solid #444444;
+}
+table.blueTable thead th {
+  font-size: 15px;
+  height: 40px;
+  font-weight: bold;
+  color: #FFFFFF;
+  border-left: 2px solid #D0E4F5;
+}
+table.blueTable thead th:first-child {
+  border-left: none;
+}
+
+/* https://purecss.io/buttons/ */
+
+.button-success {
+    color: white;
+    font-size: 12pt;
+    border-radius: 4px;
+    margin: 5px;
+    padding-left: 10px;
+    padding-right: 10px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    background: #327cad; /* this is a green */
+}
+
+.button-simple {
+    color: white;
+    font-size: 12pt;
+    border-radius: 4px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    background: #327cad; /* this is a green */
+}
+
+    </style>
+
+    <script>
+        // Class for fuzzing lists 
+
+        class FuzzList {
+            constructor(listname, textvalues) {
+                this.name = listname;
+                this.list = textvalues;
+            }
+        }
+
+        // Array of fuzzing lists 
+
+        fuzzing_array = [];
+
+        // Default fuzzing lists
+
+    	var payload_text = [] ;
+		var opentag = new FuzzList("[Open_Tag]", " <");
+        fuzzing_array.push(opentag);
+		
+		var closetag = new FuzzList("[Close_Tag]", " /"+">");
+        fuzzing_array.push(closetag);
+		
+		var jsbegin = new FuzzList("[JS_Begin]", " <script>");
+        fuzzing_array.push(jsbegin);
+		
+		var jsend = new FuzzList("[JS_End]", " <"+"/"+"script>");
+        fuzzing_array.push(jsend);
+		
+		var htmlltag = new FuzzList("[HTML_Tag]", " img\n audio\n video\n input\n svg\n p");
+        fuzzing_array.push(htmlltag);
+		
+	    var htmlevent = new FuzzList("[HTML_Event]", " onerror\n onload\n onchange\n onclick\n onplay");
+        fuzzing_array.push(htmlevent);
+
+        var htmlattr = new FuzzList("[HTML_Attr]", " src\n value\n left\n right\n center\n justify");
+        fuzzing_array.push(htmlattr);
+		
+		var quotes = new FuzzList("[Quotes]", " '\n \"");
+        fuzzing_array.push(quotes);
+		
+		var naghleghol = "\"";
+		var double_quotes = new FuzzList("[Double_Quotes]", " \"");
+        fuzzing_array.push(double_quotes);
+		
+		var single_quotes = new FuzzList("[Single_Quotes]", " '");
+        fuzzing_array.push(single_quotes);
+		
+		var separator = new FuzzList("[Separator]", " \\n\n \\t\n \\r");
+        fuzzing_array.push(separator);
+		
+				
+		// Array Remove - By John Resig (MIT Licensed)
+		
+		Array.prototype.remove = function(from, to) {
+			var rest = this.slice((to || from) + 1 || this.length);
+			this.length = from < 0 ? this.length + from : from;
+			return this.push.apply(this, rest);
+		};
+
+        // Initialization
+
+        function Initialization() {
+            for (var i = 0; i < fuzzing_array.length; i++) {
+                var opt = document.createElement('option');
+                opt.value = fuzzing_array[i].name;
+                opt.innerHTML = fuzzing_array[i].name;
+
+                var select = document.getElementById("fuzzing");
+                select.appendChild(opt);
+            }
+        }
+
+        // Save new fuzzing list 
+
+        function SaveFuzzingList() {
+            var myselect = document.getElementById("fuzzing");
+            if(myselect.selectedIndex == -1) return;
+
+            var listname = myselect.options[myselect.selectedIndex].value;
+
+            var list_data = document.getElementById("fuzz_list_data").value;
+
+            // Check if the list is already there
+
+            var found = false;
+
+            for (var i = 0; i < fuzzing_array.length; i++) {
+                if (fuzzing_array[i].name == listname) {
+                    fuzzing_array[i].list = list_data;
+                    found = true;
+                }
+            }
+
+            if(!found)
+            {
+                var new_list = new FuzzList(listname, list_data);
+                fuzzing_array.push(new_list);
+            }
+        }
+
+        // On changing the fuzzing list 
+
+        function SelectChanged() {
+            var myselect = document.getElementById("fuzzing");
+            if(myselect.selectedIndex == -1) return;
+
+            var list_name = myselect.options[myselect.selectedIndex].value;
+            var list_data_elem = document.getElementById("fuzz_list_data");
+
+            // Parse list data and check value
+
+            var found = false;
+            for (var i = 0; i < fuzzing_array.length; i++) {
+                if (fuzzing_array[i].name == list_name) {
+                    list_data_elem.value = fuzzing_array[i].list;
+                    found = true;
+                }
+            }
+
+            if (!found) list_data_elem.value = "";
+        }
+
+        // Function to add a new fuzz list  
+
+        function AddPlaceholder() {
+            var placeholder = document.getElementById("placeholder").value;
+            var opt = document.createElement('option');
+            opt.value = placeholder;
+            opt.innerHTML = placeholder;
+
+            var select = document.getElementById("fuzzing");
+            select.appendChild(opt);
+        }
+		
+		// Function used to delete a placeholder
+		
+		function add_to_pattern()
+		{
+			var selected_pattern = document.getElementById("fuzzing").value;
+			var payloads_pattern = document.getElementById("payloads");
+			payloads_pattern.value +=selected_pattern;
+			payload_text.push(selected_pattern);
+			var output = document.getElementById("output");
+			
+			/*output.innerHTML =payload_text;
+			output.innerHTML +=" , payload_text.length = "+payload_text.length;*/
+			
+			
+		}
+		function DeletePlaceholder()
+		{
+            var myselect = document.getElementById("fuzzing");
+            if(myselect.selectedIndex == -1) return;
+
+            var list_name = myselect.options[myselect.selectedIndex].value;
+			myselect.remove(myselect.selectedIndex);
+			
+            var list_data_elem = document.getElementById("fuzz_list_data");
+			list_data_elem.value = "";
+
+            // Parse list data and check value
+
+            for (var i = 0; i < fuzzing_array.length; i++) {
+                if (fuzzing_array[i].name == list_name) {
+                    fuzzing_array.remove(i);
+                }
+            }
+		}
+		
+		// Get fuzzlist array content by name
+		
+		function GetFuzzList(list_name)
+		{
+            // Parse list data and check value
+
+            for (var i = 0; i < fuzzing_array.length; i++) {
+                if (fuzzing_array[i].name == list_name) {
+                    var list_string = fuzzing_array[i].list;
+                    list_string = list_string.replace("\r\n","\n");
+					return list_string.split("\n");
+                }
+            }
+
+            return NULL;
+		}
+		
+		// Function that saves the executed payloads
+		
+		function js_callback(payload)
+		{
+			alert(unescape(payload));
+		}
+
+        // Basic HTML encode
+
+        function html_entities(str)
+        {
+            return str.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/'/g,"&apos;").replace(/"/g,"&quot;");
+        } 
+		
+        var current_iframe = 0;
+		var current_payload = 0;
+		var process_interval;
+		
+        // If required to use GET/POST request
+
+        var urlmode;
+        var urlmethod;
+        var get_url;
+        var post_data;
+		var nr_iframes;
+		var selected_name;
+		var codingvalue;
+		var save_payload;
+		
+		// Function that processes the results in batches
+		
+		function ProcessResultsInBatches(payload_results)
+		{
+			current_iframe = 0;
+
+            // Finished fuzzing
+
+            if(current_payload == payload_results.length) 
+            {
+                clearInterval(process_interval);
+                current_payload = 0;
+                alert("Fuzzing session finished!");
+                return;
+            }
+			
+			// Create iframes
+			
+			CreateIframes(nr_iframes);
+			
+			// Iterate through payloads
+    
+			while(current_payload < payload_results.length)
+			{
+                if(current_iframe == nr_iframes)
+                {
+                    current_iframe = 0;
+					break;
+				}
+				
+				var clean_payload = payload_results[current_payload++];
+        		var updated_payload = clean_payload.replace("[SAVE_PAYLOAD]", save_payload);
+
+                // Check run mode 
+
+                if(selected_name == "1")
+                {
+		            var doc = all_iframes[current_iframe++].contentWindow.document;
+					doc.open();
+					doc.write(updated_payload.replace("[PAYLOAD]",escape(clean_payload)));
+					doc.close();
+                }
+                else if(selected_name == "2")
+                {
+                    // GET
+
+                    if(urlmethod == "GET")
+                    {
+                        all_iframes[current_iframe++].src = get_url.replace("[PAYLOAD]", escape(updated_payload.replace("[PAYLOAD]",escape(clean_payload))));
+                    }
+                    else 
+                    {
+                        // Create HTML form
+
+                        var form_content = '<form method="post" id="post_form" action="' + get_url.replace("[PAYLOAD]",escape(updated_payload.replace("[PAYLOAD]",escape(clean_payload)))) + '">\n';
+                
+                        // Parse POST data
+
+                        var params = post_data.split("&");
+                        for(var p = 0; p < params.length; p++)
+                        {
+                            var each_param = params[p].split("=");
+                            form_content += '<input type="hidden" name="' 
+                        		+ html_entities(each_param[0].replace("[PAYLOAD]", html_entities(updated_payload.replace("[PAYLOAD]",escape(clean_payload))))) + '" value="' 
+                        		+ html_entities(each_param[1].replace("[PAYLOAD]", html_entities(updated_payload.replace("[PAYLOAD]",escape(clean_payload))))) + '" />\n';
+                        }
+                
+                        var doc = all_iframes[current_iframe++].contentWindow.document;
+						doc.open();
+						doc.write(form_content + '</form><scr' + 'ipt>document.getElementById(\'post_form\').submit();</scr' + 'ipt>\n');
+						doc.close();
+                    }
+                }
+        	}
+		}
+		
+		// Function used to create the iframes
+		
+		var all_iframes = [];
+		var ifrm;
+		
+		function CreateIframes(nr_iframes)
+		{
+            // Cleanup
+			
+			all_iframes = [];
+			ifrm = document.getElementById("runiframe");
+            ifrm.innerHTML = "";
+			
+			// Create new iframes
+			
+            for(var i = 0; i < nr_iframes; i++)
+            {
+                var iframe = document.createElement("iframe");
+                iframe.width = 140;
+                iframe.height = 140;
+
+                ifrm.appendChild(iframe);
+                all_iframes.push(iframe);
+
+                // Add a <br />
+
+                if( (i + 1) % 10 == 0)
+                {
+                    var br = document.createElement("br");
+                    ifrm.appendChild(br);
+                }
+            }
+		}
+		
+		// Function that does something with the results
+		
+		function ProcessResults(payload_results)
+		{
+			var runmode = document.getElementById("runmode");
+            selected_name = runmode.options[runmode.selectedIndex].value;
+            save_payload = document.getElementById("save_payload").value;
+			
+			
+			var codingvalue=document.getElementById("coding").value;
+			
+			{
+				
+				if(codingvalue == "0")
+				{
+					for(var f = 0; f < payload_results.length; f++)
+					{
+						var number=f+1;
+						var print_result = escape(payload_results[f].replace("[SAVE_PAYLOAD]", save_payload).replace(/</g,"&lt;").replace(/>/g,"&gt;"));
+						output.innerHTML +=number+". "+ print_result;
+						output.innerHTML += "<br />\r\n";
+					}
+					output.innerHTML += "<br />\r\n";
+				}
+				else
+				{
+					for(var f = 0; f < payload_results.length; f++)
+					{
+						var number=f+1;
+						var print_result =payload_results[f].replace("[SAVE_PAYLOAD]", save_payload).replace(/</g,"&lt;").replace(/>/g,"&gt;");
+						output.innerHTML +=number+". "+ print_result;
+						output.innerHTML += "<br />\r\n";
+					}
+					output.innerHTML += "<br />\r\n";
+				}
+			}
+			
+			// Run in iframes
+			
+			if(selected_name == "1" || selected_name == "2")
+			{
+                ifrm = document.getElementById("runiframe");
+                nr_iframes = parseInt(document.getElementById("nr_iframes").value);
+				nr_delay = parseInt(document.getElementById("nr_delay").value);
+
+                // If required to use GET/POST request
+
+                urlmode = document.getElementById("urlmode");
+                urlmethod = urlmode.options[urlmode.selectedIndex].value;
+                get_url = document.getElementById("get_url").value;
+                post_data = document.getElementById("post_data").value;
+				
+				// Run in batches
+				
+				ProcessResultsInBatches(payload_results);
+				
+                process_interval = setInterval( function() 
+                {  
+					ProcessResultsInBatches(payload_results)
+				}, nr_delay);
+			}
+
+		}
+		
+		// Run function
+		
+		function Run()
+		{
+			// Get the payloads
+			
+			var payloadstext = document.getElementById("payloads").value;
+			payloadstext = payloadstext.replace("\r\n","\n");
+			var payloads = payloadstext.split("\n");
+			var output = document.getElementById("output");
+			
+			
+			
+			output.innerHTML = "<br />\r\n";
+			document.getElementById("runiframe").innerHTML = "\r\n";
+			
+			// Iterate through payloads
+			
+			for(var i = 0; i < payloads.length; i++)
+			{
+				// Init payload list
+				
+				payload_results = [];
+				payload_results.push(payloads[i]);
+				var total_payloads = 1;
+			
+				// Check all placeholders
+				
+				for( var a=0; a<payload_text.length; a++)
+				{
+					for(var j = 0; j < fuzzing_array.length; j++)
+					{
+						total_payloads = payload_results.length;
+						var list_found = false;
+						
+						// Iterate through all previously stored payloads
+						
+						for(var p = 0; p < total_payloads; p++)
+						{
+							// Check if we have the placeholder in the HTML_Tag
+							
+							if(payload_results[p].includes(fuzzing_array[j].name))
+							{
+								// Navigate through fuzz list
+								
+								var fuzz = GetFuzzList(fuzzing_array[j].name);
+								
+								for(var k = 0; k < fuzz.length; k++)
+								{
+									// Sava a list with all payloads
+									
+									var one_payload = payload_results[p].replace(fuzzing_array[j].name, fuzz[k]);
+									payload_results.push(one_payload);
+								}
+							}
+							else list_found = true;
+						}
+						
+						// Remove unused payloads
+						
+						if(!list_found) for(var r = 0; r < total_payloads; r++) payload_results.remove(0);
+					}
+				}
+					
+				// Print the results
+				
+				ProcessResults(payload_results);
+			}
+		}
+		
+        // When run mode is changed
+
+        function RunModeChanged()
+        {
+            var runmode = document.getElementById("runmode");
+      		var codingvalue=document.getElementById("coding").value
+			var selected_name = runmode.options[runmode.selectedIndex].value;
+            var nr_iframes = document.getElementById("run_nr_iframes");
+			var nr_delay = document.getElementById("run_nr_delay");
+            var req_iframes = document.getElementById("request_iframes");
+            var req_iframes_url = document.getElementById("request_iframes_url");
+            var req_iframes_data = document.getElementById("request_iframes_data");
+
+            // Print them
+			
+			if(selected_name == "0")
+			{
+                nr_iframes.style.display = "none";
+				nr_delay.style.display = "none";
+                req_iframes.style.display = "none";
+                req_iframes_url.style.display = "none";
+                req_iframes_data.style.display = "none";
+			}
+			
+			// Run in iframe
+			
+			if(selected_name == "1")
+			{
+                nr_iframes.style.display = "";
+				nr_delay.style.display = "";
+                req_iframes.style.display = "none";
+                req_iframes_url.style.display = "none";
+                req_iframes_data.style.display = "none";
+			}
+
+            // Run in request
+			
+			if(selected_name == "2")
+			{
+                nr_iframes.style.display = "";
+				nr_delay.style.display = "";
+                req_iframes.style.display = "";
+                req_iframes_url.style.display = "";
+                req_iframes_data.style.display = "";
+			}
+        }
+		
+    </script>
+
+</head>
+
+<body onload="Initialization()">
+
+    <table class="blueTable" align="center"> 
+
+    <thead>
+        <tr align="center">
+            <th colspan="3" style="
+    font-family: b titr;
+    font-size: 25px;
+">
+                توسعه یافته XSS فازر
+            </th>
+        </tr>
+
+        <tr align="center">
+            <th width="40%" style="
+    font-family: b titr;
+    font-size: 20px;
+">
+                الگوی ساخت بردار حمله
+            </th>
+            <th width="35%" style="
+    font-family: b titr;
+    font-size: 20px;
+">
+                لیست نمادها
+            </th>
+            <th width="25%" style="
+    font-family: b titr;
+    font-size: 20px;
+">
+                لیست پارامترهای مربوط به هر نماد
+            </th>
+        </tr>
+    </thead>
+
+        <tbody><tr align="center">
+            <td>
+                <textarea class="round" placeholder="الگوی تولید بردار حمله را وارد کنید" id="payloads" rows="10" cols="80" style="
+    font-size: 11pt;
+    font-weight: bold !important;
+    max-width: 600px;
+"></textarea>
+            </td>
+
+            <td style="
+    font-family: b titr;
+    font-size: 19px;
+">
+				<br>
+                <select id="fuzzing" size="10" onchange="SelectChanged()" style="font-size: 11pt;font-weight: bold !important;width: 229px;">
+		        <option value="[Open_Tag]">[Open_Tag]</option><option value="[Close_Tag]">[Close_Tag]</option><option value="[JS_Begin]">[JS_Begin]</option><option value="[JS_End]">[JS_End]</option><option value="[HTML_Tag]">[HTML_Tag]</option><option value="[HTML_Event]">[HTML_Event]</option><option value="[HTML_Attr]">[HTML_Attr]</option><option value="[Quotes]">[Quotes]</option><option value="[Double_Quotes]" style="
+">[Double_Quotes]</option><option value="[Single_Quotes]">[Single_Quotes]</option><option value="[Separator]">[Separator]</option></select>
+                <br><br> 
+				<input type="button" class="button-simple" value="افزودن به الگوی بردارحمله" onclick="add_to_pattern()" style="
+    font-family: b titr;
+    font-size: 18px;
+">
+				<input type="button" class="button-simple" value="حذف نماد" onclick="DeletePlaceholder()" style="
+    font-family: b titr;
+    font-size: 18px;
+">
+				<br><br>
+				نماد جدید: <input type="text" id="placeholder" value="" style="
+    width: 132px;
+">
+                <input type="button" class="button-simple" value="افزودن" onclick="AddPlaceholder()" style="
+    font-family: b titr;
+    font-size: 18px;
+">
+				<br><br>
+            </td>
+
+            <td>
+                <textarea placeholder="انتخاب" id="fuzz_list_data" class="round" rows="10" cols="30" style="
+    font-size: 11pt;
+    font-weight: bold;
+    max-width: 250px;
+"></textarea>
+                <br><br>
+                <input type="button" class="button-simple" value="ذخیره" onclick="SaveFuzzingList()" style="
+    font-family: b titr;
+    font-size: 18px;
+">
+            </td>
+        </tr>
+
+        <tr>
+            <td colspan="2" style="padding: 20px;">
+                
+                <table>
+                
+                    <tbody><tr style="visibility:hidden">
+                        <td style="border:none" width="100">روش پیاده سازی: </td>
+				        <td style="border:none" width="400">
+                            <select id="runmode" onchange="RunModeChanged()">
+					            <option value="0">چاپ خروجی</option>
+                                <option value="1">اجرا در آی فریم</option>
+                                <option value="2">اجرا در آی فریم گت و پست</option>
+                            </select>
+                        </td>
+                    </tr>
+					
+					<tr>
+                        <td style="border:none;font-family: b titr;font-size: 20px;text-align: right;" width="15">رمزنگاری</td>
+				        <td style="border:none" width="400">
+                            <select id="coding" onchange="RunModeChanged()" style="
+    width: 67px;
+    font-family: b titr;
+    font-size: 18px;
+    padding-left: 12px;
+">
+					            <option value="0" style="
+">بله</option>
+                                <option value="1">خیر</option>
+                            </select>
+                        </td>
+                    </tr>
+
+                    <tr id="run_nr_iframes_payload">
+                        <td style="border:none;font-family: b titr;font-size: 18px;">
+                            عامل خرابکاری<br> (PAYLOAD) 
+                        </td>
+                        <td style="border:none">
+                            <input type="text" style="width: 300px;font-family: ariial;font-size: 21px;" id="save_payload" value="alert(1)">
+                        </td>
+                    </tr>
+
+                    <tr id="run_nr_iframes" style="display: none">
+                        <td style="border:none">
+                            Nr. of iframes: 
+                        </td>
+                        <td style="border:none">
+                            <input type="text" style="width: 50px;" id="nr_iframes" value="100">
+                        </td>
+                    </tr>
+					
+                    <tr id="run_nr_delay" style="display: none">
+                        <td style="border:none">
+                            Iframes delay: 
+                        </td>
+                        <td style="border:none">
+                            <input type="text" style="width: 50px;" id="nr_delay" value="5000">
+                        </td>
+                    </tr>
+
+                    <tr id="request_iframes" style="display: none">
+                        <td style="border:none">Request type:  </td>
+                        <td style="border:none">
+                            <select id="urlmode">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                            </select>
+                        </td>
+                    </tr>
+
+                    <tr id="request_iframes_url" style="display: none">
+                        <td style="border:none">URL:</td>
+                        <td style="border:none"><input type="text" style="width: 300px;" id="get_url" value=""></td>
+                    </tr>
+
+                    <tr id="request_iframes_data" style="display: none">
+                        <td style="border:none">POST data: </td>
+                        <td style="border:none"><input type="text" style="width: 300px;" id="post_data" value=""></td> 
+                    </tr>
+
+                </tbody></table>
+
+            </td>
+
+            <td align="center">
+                <input type="button" onclick="Run()" value="اجرا" class="button-success" style="
+    font-family: b titr;
+    font-size: 20px;
+">
+            </td>
+        </tr>
+		
+		<tr>
+			<td colspan="3" style="padding-left: 20px;font-family: b titr;font-size: 20px;">
+                <br>خروجی: <br>
+				<div id="runiframe"></div><br>
+                <div id="output"></div>
+			</td>
+		</tr>
+
+    </tbody></table>
+	<script>		
+		//var codingvalue=document.getElementById("coding").value
+	</script>
+
+
+
+</body></html>
